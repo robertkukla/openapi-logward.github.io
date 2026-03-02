@@ -1,0 +1,531 @@
+openapi: 3.0.3
+info:
+  title: Kukla x Logward x shiftX
+  version: 0.1.0
+  description: >
+    Draft API for discussion with partner.
+
+    Notes:
+    - Authentication: Basic Auth (User/Password).
+    - Date/time fields use ISO 8601 (RFC 3339), e.g. 2026-01-20T12:34:56Z.
+
+servers:
+  - url: https://intertrans.cloud/IT8Kukla/hs/kukla/
+    description: PRODUCTION
+  - url: https://intertrans.cloud/IT8KuklaIgor/hs/kukla/
+    description: SANDBOX
+
+security:
+  - basicAuth: []
+
+paths:
+  /v1/test:
+    get:
+      summary: Test API connection
+      description: >
+        Simple endpoint to test connectivity and authentication.
+        Returns plain text "OK" if connection is established successfully.
+      operationId: testConnection
+      responses:
+        "200":
+          description: Connection successful
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK"
+        "401":
+          description: Unauthorized (invalid user/password)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                Unauthorized:
+                  value:
+                    type: "unauthorized"
+                    title: "Unauthorized"
+                    status: 401
+                    detail: "Invalid credentials"
+                    errorId: "1c6a6f55-3b69-4b69-9c2c-2b2c4c3c8c0a"
+                    timestamp: "2026-01-20T12:34:56Z"
+                    instance: "/v1/test"
+
+  /v1/logward/order:
+    post:
+      summary: Create / upsert Logward order
+      description: >
+        This endpoint is used to create or upsert a transport order in the Intertrans system based on data provided by Logward / shiftX.
+        The request contains the full order payload, including general order information, cargo details and transport unit data.
+        If an order with the same external reference already exists, the system may update the existing order instead of creating a new one (upsert behavior).
+        Some information (for example, actual arrival dates) may be unknown at the time of order creation and can be provided later via a dedicated update endpoint.
+        On successful processing, the API returns a unique OrderUUID, which can be used for further updates or troubleshooting.
+        The request is validated both structurally and semantically.
+        If referenced master data (e.g. carrier, consignee, ports) cannot be resolved, the request will be rejected with a validation error.
+      operationId: postLogwardOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/transportOrderEnvelope"
+      responses:
+        "200":
+          description: Transport order accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/transportOrderResponse"
+        "400":
+          description: Bad request (invalid JSON / format)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                InvalidJson:
+                  value:
+                    type: "bad_request"
+                    title: "Invalid JSON"
+                    status: 400
+                    detail: "Request body cannot be parsed"
+                    errorId: "b2f5e1d6-5a5f-4c0f-b6d6-4d5a0b0d7c1e"
+                    timestamp: "2026-01-20T12:34:56Z"
+                    instance: "/v1/logward/order"
+                    errors:
+                      - code: "BAD_JSON"
+                        field: "transport_order.shiftxId"
+                        message: "Field 'transport_order.shiftxId' is required"
+        "422":
+          description: Validation / mapping error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                MappingNotFoundCarrier:
+                  value:
+                    type: "validation_error"
+                    title: "Validation failed"
+                    status: 422
+                    detail: "Some fields contain unknown references"
+                    errorId: "e7c31f6c-2c43-4d4f-8a52-5f8b9b5fd0c2"
+                    timestamp: "2026-01-20T12:34:56Z"
+                    instance: "/v1/logward/order"
+                    errors:
+                      - code: "MAPPING_NOT_FOUND"
+                        field: "transport_order.carrierScac"
+                        message: "Carrier not found in Intertrans master data"
+                        rejectedValue: "MAEU"
+                        expected: "Known carrier reference / mapping to Order.Carrier"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                InternalError:
+                  value:
+                    type: "internal_error"
+                    title: "Internal server error"
+                    status: 500
+                    detail: "Unexpected error while processing request"
+                    errorId: "a3c91c0b-5c2b-4a8e-9d5b-1f7b8f0e3a21"
+                    timestamp: "2026-01-20T12:35:10Z"
+                    instance: "/v1/logward/order"
+                    errors:
+                      - code: "SERVER ERROR"
+                        field: "order"
+                        message: "Division durch null"
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+
+  schemas:
+    transportOrderEnvelope:
+      type: object
+      required:
+        - transport_order
+      properties:
+        transport_order:
+          $ref: "#/components/schemas/transportOrder"
+
+    transportOrderResponse:
+      type: object
+      required:
+        - OrderUUID
+      properties:
+        OrderUUID:
+          type: string
+          minLength: 36
+          maxLength: 36
+          example: "d2c99d32-7d8c-4987-899c-208d28cfed52"
+          description: Unique identifier of the created or updated order in Intertrans.
+
+    transportOrder:
+      type: object
+      required:
+        - purchaseOrderNumber
+        - consigneeNameDetails
+        - carrierScac
+        - polLocode
+        - podLocode
+        - cargo
+        - transport_unit
+      properties:
+        purchaseOrderNumber:
+          type: string
+          maxLength: 50
+          example: "TEN248392"
+          description: >
+            Purchase order number (likely Logward order number).
+
+            NEEDS-CLARIFICATION:
+            Mapping unclear: Order.Reference vs Order.Shipments.AdditionalInfoField1.
+          x-mapping:
+            fieldPath: "Order.Reference / Order.Shipments.AdditionalInfoField1"
+
+        shiftxId:
+          type: string
+          description: >
+            External identifier from partner system.
+
+            NEEDS-CLARIFICATION:
+            Meaning and usage of this field is unclear.
+
+        code:
+          type: string
+          description: >
+            Partner-specific code.
+
+            NEEDS-CLARIFICATION:
+            Purpose and business meaning unclear.
+
+        bookingAgentOffice1:
+          type: string
+          description: >
+            Booking agent office.
+
+            NEEDS-CLARIFICATION:
+            Field purpose and expected content unclear.
+
+        consigneeNameDetails:
+          type: string
+          example: "Muster Firma"
+          description: >
+            Consignee name details.
+
+            NEEDS-CLARIFICATION:
+            Prefer reference, string only as fallback.
+          x-mapping:
+            fieldPath: "Order.Consignee"
+
+        carrierScac:
+          type: string
+          description: >
+            Carrier identifier (SCAC).
+
+            NEEDS-CLARIFICATION:
+            SCAC definition and mapping to Intertrans addresses. Reference required.
+          x-mapping:
+            fieldPath: "Order.Carrier"
+
+        polLocode:
+          type: string
+          example: "DEHAM"
+          description: Port of loading UN/LOCODE (e.g. DEHAM).
+          x-mapping:
+            fieldPath: "Order.Address.POL.Ref"
+
+        podLocode:
+          type: string
+          example: "NLRTM"
+          description: Port of discharge UN/LOCODE (e.g. NLRTM).
+          x-mapping:
+            fieldPath: "Order.Address.POD.Ref"
+
+        cargo:
+          $ref: "#/components/schemas/cargo"
+
+        transport_unit:
+          type: array
+          items:
+            $ref: "#/components/schemas/transportUnit"
+
+    cargo:
+      type: object
+      required:
+        - itemDescription
+        - itemQuantity
+        - packageQuantity
+        - packagingType
+        - grossWeight
+      properties:
+        itemDescription:
+          type: string
+          maxLength: 200
+          example: "Food on pallets"
+          description: Cargo description
+          x-mapping:
+            fieldPath: "Order.Shipment.Shipment"
+
+        itemQuantity:
+          type: number
+          description: Quantity of transported goods
+          x-mapping:
+            fieldPath: "Order.Shipment.Quantity"
+
+        packageQuantity:
+          type: number
+          description: Number of packages
+          x-mapping:
+            fieldPath: "Order.Shipment.PackageQuantity"
+
+        packagingType:
+          type: string
+          description: >
+            Packaging type code.
+
+            Allowed values:
+            BA  – Ballen
+            BAG – Bags
+            BB  – Bigbags
+            CA  – Cases
+            CC  – CC
+            COL – Colli
+            CT  – Container
+            DD  – Düsseldorfer Paletten
+            DD-K – DDP Konto Tauschpalette
+            DD-N – DDP keine Tauschpalette
+            DD-T – DDP Tauschpalette
+            DRM – Drum
+            EP  – Einwegpalette
+            EU  – Europaletten keine Tauschpalette
+            EU-K – Europaletten Konto Tauschpalette
+            EU-N – Europaletten keine Tauschpalette
+            EU-T – Europaletten Tauschpalette
+            EU-V – Europaletten Voucher
+            F   – Fässer
+            FLS – Flaschen
+            FP  – FP
+            FT  – Flexi Tank
+            GP  – GP
+            HHP – Heilbronner Halbpalette
+            HP  – Halb-Palette
+            IND – Industrie Paletten
+            KAR – Kartons
+            LDG – Ladung
+            LDM – Lademeter
+            PAL – Palette gemischt
+            PKG – Packages
+            SAC – Säcke
+            SLS – Slipsheets
+            SP  – Stellplatz
+            STK – Stück
+            TC  – Tankcontainer
+            test.PAL. – test.PAL.
+            VMF – AMERICAN / VMF (1.20 x 1.00)
+          enum:
+            - BA
+            - BAG
+            - BB
+            - CA
+            - CC
+            - COL
+            - CT
+            - DD
+            - DD-K
+            - DD-N
+            - DD-T
+            - DRM
+            - EP
+            - EU
+            - EU-K
+            - EU-N
+            - EU-T
+            - EU-V
+            - F
+            - FLS
+            - FP
+            - FT
+            - GP
+            - HHP
+            - HP
+            - IND
+            - KAR
+            - LDG
+            - LDM
+            - PAL
+            - PKG
+            - SAC
+            - SLS
+            - SP
+            - STK
+            - TC
+            - test.PAL.
+            - VMF
+          example: "EU"
+          x-mapping:
+            fieldPath: "Order.Shipment.PackageType"
+
+        grossWeight:
+          type: number
+          description: Gross weight of goods
+          x-mapping:
+            fieldPath: "Order.Shipment.ActualWeight"
+
+    transportUnit:
+      type: object
+      required:
+        - containerType
+        - containerNumber
+      properties:
+        containerType:
+          type: string
+          maxLength: 50
+          example: "20' STANDARD"
+          description: Container type
+          x-mapping:
+            fieldPath: "Order.Shipment.Note7"
+
+        containerNumber:
+          type: string
+          example: "WLS26280"
+          description: Container number
+          x-mapping:
+            fieldPath: "Order.Shipment.Marking"
+
+        estimatedDeparturePol:
+          type: string
+          format: date-time
+          description: Estimated departure at POL (ISO 8601)
+
+        actualDeparturePol:
+          type: string
+          format: date-time
+          description: Actual departure at POL (ISO 8601)
+
+        estimatedArrivalPod:
+          type: string
+          format: date-time
+          description: Estimated arrival at POD (ISO 8601)
+
+        actualArrivalPod:
+          type: string
+          format: date-time
+          description: Actual arrival at POD (ISO 8601)
+
+        actualTotalWeight:
+          type: number
+          description: >
+            Total actual weight.
+
+            NEEDS-CLARIFICATION:
+            Difference vs grossWeight and target field unclear.
+
+        informationVesselName:
+          type: string
+          maxLength: 50
+          example: "CMA CGM Monitor"
+          description: Vessel name
+          x-mapping:
+            fieldPath: "Order.Shipment.Note12"
+
+        voyage:
+          type: string
+          maxLength: 50
+          example: "1234x45"
+          description: Voyage number
+          x-mapping:
+            fieldPath: "Order.Shipment.NoteString1"
+
+        bookingNumber:
+          type: string
+          maxLength: 50
+          example: "2700009966"
+          description: Booking number
+          x-mapping:
+            fieldPath: "Order.Shipment.Note9"
+
+        mblNoContainer:
+          type: string
+          maxLength: 50
+          description: Master B/L number
+          x-mapping:
+            fieldPath: "Order.Shipment.Note10"
+
+    serviceException:
+      type: object
+      description: Standard error response (Problem Details style)
+      required:
+        - type
+        - title
+        - status
+        - errorId
+        - timestamp
+      properties:
+        type:
+          type: string
+          description: Machine-readable error type
+          example: "validation_error"
+        title:
+          type: string
+          description: Short summary
+          example: "Validation failed"
+        status:
+          type: integer
+          format: int32
+          description: HTTP status code
+          example: 422
+        detail:
+          type: string
+          description: Human-readable explanation
+          example: "Some fields contain unknown references"
+        errorId:
+          type: string
+          description: Unique id for troubleshooting
+          example: "e7c31f6c-2c43-4d4f-8a52-5f8b9b5fd0c2"
+        timestamp:
+          type: string
+          format: date-time
+          description: Error time in ISO 8601
+          example: "2026-01-20T12:34:56Z"
+        instance:
+          type: string
+          description: Request path or correlation pointer
+          example: "/v1/logward/order"
+        errors:
+          type: array
+          description: Optional list of field-level issues
+          items:
+            $ref: "#/components/schemas/serviceExceptionItem"
+
+    serviceExceptionItem:
+      type: object
+      description: Single field / mapping issue
+      required:
+        - code
+        - field
+        - message
+      properties:
+        code:
+          type: string
+          description: Sub-code
+          example: "MAPPING_NOT_FOUND"
+        field:
+          type: string
+          description: Field path in request payload
+          example: "transport_order.carrierScac"
+        message:
+          type: string
+          description: Human-readable message
+          example: "Carrier not found in Intertrans master data"
+        rejectedValue:
+          description: The value that caused the error (any type)
+        expected:
+          type: string
+          description: Optional hint what is expected
+          example: "Known carrier reference / mapping to Order.Carrier"
