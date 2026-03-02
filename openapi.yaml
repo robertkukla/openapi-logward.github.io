@@ -92,6 +92,10 @@ paths:
                     errorId: "b2f5e1d6-5a5f-4c0f-b6d6-4d5a0b0d7c1e"
                     timestamp: "2026-01-20T12:34:56Z"
                     instance: "/v1/logward/order"
+                    errors:
+                      - code: "BAD_JSON"
+                        field: "transport_order.shiftxId"
+                        message: "Field 'transport_order.shiftxId' is required"
         "422":
           description: Validation / mapping error
           content:
@@ -130,75 +134,10 @@ paths:
                     errorId: "a3c91c0b-5c2b-4a8e-9d5b-1f7b8f0e3a21"
                     timestamp: "2026-01-20T12:35:10Z"
                     instance: "/v1/logward/order"
-
-  /v1/logward/order/{OrderUUID}:
-    patch:
-      summary: Update order (partial)
-      description: >
-        Partial update of an existing order.
-        Intended for fields that may be unknown at order creation time.
-
-        NEEDS-CLARIFICATION:
-        Do we need this update endpoint at all, or should updates be handled via create/upsert?
-      operationId: patchLogwardOrder
-      parameters:
-        - name: OrderUUID
-          in: path
-          required: true
-          description: Order UUID returned by POST /v1/logward/order
-          schema:
-            type: string
-            minLength: 36
-            maxLength: 36
-            example: "d2c99d32-7d8c-4987-899c-208d28cfed52"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/orderUpdateRequest"
-      responses:
-        "200":
-          description: Order updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/transportOrderResponse"
-        "400":
-          description: Bad request (invalid JSON / format)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/serviceException"
-        "404":
-          description: Order not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/serviceException"
-              examples:
-                NotFound:
-                  value:
-                    type: "not_found"
-                    title: "Order not found"
-                    status: 404
-                    detail: "OrderUUID was not found in Intertrans"
-                    errorId: "7b2b8b51-9a7f-4e2c-9c48-8cb0b2b9f5c8"
-                    timestamp: "2026-01-20T12:36:00Z"
-                    instance: "/v1/logward/order/d2c99d32-7d8c-4987-899c-208d28cfed52"
-        "422":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/serviceException"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/serviceException"
-
+                    errors:
+                      - code: "SERVER ERROR"
+                        field: "order"
+                        message: "Division durch null"
 components:
   securitySchemes:
     basicAuth:
@@ -517,21 +456,6 @@ components:
           description: Master B/L number
           x-mapping:
             fieldPath: "Order.Shipment.Note10"
-
-    orderUpdateRequest:
-      type: object
-      description: Partial update payload for an existing order
-      properties:
-        actualArrivalPod:
-          type: string
-          format: date-time
-          description: Actual arrival at POD (ISO 8601)
-        actualArrivalPol:
-          type: string
-          format: date-time
-          description: Actual arrival at POL (ISO 8601)
-      minProperties: 1
-      additionalProperties: false
 
     serviceException:
       type: object
