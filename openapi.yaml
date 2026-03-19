@@ -190,6 +190,7 @@ components:
 
         shiftxId:
           type: string
+          example: "TO12305"
           description: >
             External identifier from partner system.
 
@@ -198,6 +199,7 @@ components:
 
         code:
           type: string
+          example: "C24234"
           description: >
             Partner-specific code.
 
@@ -206,6 +208,7 @@ components:
 
         bookingAgentOffice1:
           type: string
+          example: "SHIFT X"
           description: >
             Booking agent office.
 
@@ -214,7 +217,7 @@ components:
 
         consigneeName:
           type: string
-          example: "Muster Firma"
+          example: "KUKLA MUENCHEN"
           description: >
             Consignee name .
 
@@ -225,7 +228,7 @@ components:
         
         consigneeCode:
           type: string
-          example: "123"
+          example: "DE2941317"
           description: >
             Consignee EORI or VATID.
 
@@ -250,9 +253,9 @@ components:
 
         carrierName:
           type: string
+          example: "Deutsche Africa-Linien"
           description: >
             Carrier name.
-
             NEEDS-CLARIFICATION:
             SCAC definition and mapping to Intertrans addresses. Reference required.
           x-mapping:
@@ -260,6 +263,7 @@ components:
 
         carrierScac:
           type: string
+          example: "DALU"
           description: >
             Carrier identifier (SCAC).
 
@@ -270,7 +274,7 @@ components:
 
         polName:
           type: string
-          example: "DEHAM"
+          example: "Hamburg"
           description: Port of loading UN/LOCODE (e.g. DEHAM).
           x-mapping:
             fieldPath: "Order.Address.POL.Ref"
@@ -284,7 +288,7 @@ components:
             
         podName:
           type: string
-          example: "NLRTM"
+          example: "Rotterdam"
           description: Port of discharge NAME.
           x-mapping:
             fieldPath: "Order.Address.POD.Ref"
