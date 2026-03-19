@@ -212,16 +212,51 @@ components:
             NEEDS-CLARIFICATION:
             Field purpose and expected content unclear.
 
-        consigneeNameDetails:
+        consigneeName:
           type: string
           example: "Muster Firma"
           description: >
-            Consignee name details.
+            Consignee name .
 
             NEEDS-CLARIFICATION:
             Prefer reference, string only as fallback.
           x-mapping:
             fieldPath: "Order.Consignee"
+        
+        consigneeCode:
+          type: string
+          example: "123"
+          description: >
+            Consignee EORI or VATID.
+
+            NEEDS-CLARIFICATION:
+            Prefer reference, string only as fallback.
+          x-mapping:
+            fieldPath: "Order.Consignee"
+        
+        consigneeCodeType:
+          type: string
+          description: >
+            Code type.
+
+            Allowed values:
+            EORI  
+            VATID
+ 
+          enum:
+            - EORI
+            - VATID
+          example: "EORI"
+
+        carrierName:
+          type: string
+          description: >
+            Carrier name.
+
+            NEEDS-CLARIFICATION:
+            SCAC definition and mapping to Intertrans addresses. Reference required.
+          x-mapping:
+            fieldPath: "Order.Carrier"
 
         carrierScac:
           type: string
@@ -233,12 +268,26 @@ components:
           x-mapping:
             fieldPath: "Order.Carrier"
 
-        polLocode:
+        polName:
           type: string
           example: "DEHAM"
           description: Port of loading UN/LOCODE (e.g. DEHAM).
           x-mapping:
             fieldPath: "Order.Address.POL.Ref"
+
+        polLocode:
+          type: string
+          example: "DEHAM"
+          description: Port of loading UN/LOCODE (e.g. DEHAM).
+          x-mapping:
+            fieldPath: "Order.Address.POL.Ref"            
+            
+        podName:
+          type: string
+          example: "NLRTM"
+          description: Port of discharge NAME.
+          x-mapping:
+            fieldPath: "Order.Address.POD.Ref"
 
         podLocode:
           type: string
@@ -290,44 +339,44 @@ components:
             Packaging type code.
 
             Allowed values:
-            BA  – Ballen
-            BAG – Bags
-            BB  – Bigbags
-            CA  – Cases
-            CC  – CC
-            COL – Colli
-            CT  – Container
-            DD  – Düsseldorfer Paletten
-            DD-K – DDP Konto Tauschpalette
-            DD-N – DDP keine Tauschpalette
-            DD-T – DDP Tauschpalette
-            DRM – Drum
-            EP  – Einwegpalette
-            EU  – Europaletten keine Tauschpalette
-            EU-K – Europaletten Konto Tauschpalette
-            EU-N – Europaletten keine Tauschpalette
-            EU-T – Europaletten Tauschpalette
-            EU-V – Europaletten Voucher
-            F   – Fässer
-            FLS – Flaschen
-            FP  – FP
-            FT  – Flexi Tank
-            GP  – GP
-            HHP – Heilbronner Halbpalette
-            HP  – Halb-Palette
-            IND – Industrie Paletten
-            KAR – Kartons
-            LDG – Ladung
-            LDM – Lademeter
-            PAL – Palette gemischt
-            PKG – Packages
-            SAC – Säcke
-            SLS – Slipsheets
-            SP  – Stellplatz
-            STK – Stück
-            TC  – Tankcontainer
-            test.PAL. – test.PAL.
-            VMF – AMERICAN / VMF (1.20 x 1.00)
+            BA  â€“ Ballen
+            BAG â€“ Bags
+            BB  â€“ Bigbags
+            CA  â€“ Cases
+            CC  â€“ CC
+            COL â€“ Colli
+            CT  â€“ Container
+            DD  â€“ DÃ¼sseldorfer Paletten
+            DD-K â€“ DDP Konto Tauschpalette
+            DD-N â€“ DDP keine Tauschpalette
+            DD-T â€“ DDP Tauschpalette
+            DRM â€“ Drum
+            EP  â€“ Einwegpalette
+            EU  â€“ Europaletten keine Tauschpalette
+            EU-K â€“ Europaletten Konto Tauschpalette
+            EU-N â€“ Europaletten keine Tauschpalette
+            EU-T â€“ Europaletten Tauschpalette
+            EU-V â€“ Europaletten Voucher
+            F   â€“ FÃ¤sser
+            FLS â€“ Flaschen
+            FP  â€“ FP
+            FT  â€“ Flexi Tank
+            GP  â€“ GP
+            HHP â€“ Heilbronner Halbpalette
+            HP  â€“ Halb-Palette
+            IND â€“ Industrie Paletten
+            KAR â€“ Kartons
+            LDG â€“ Ladung
+            LDM â€“ Lademeter
+            PAL â€“ Palette gemischt
+            PKG â€“ Packages
+            SAC â€“ SÃ¤cke
+            SLS â€“ Slipsheets
+            SP  â€“ Stellplatz
+            STK â€“ StÃ¼ck
+            TC  â€“ Tankcontainer
+            test.PAL. â€“ test.PAL.
+            VMF â€“ AMERICAN / VMF (1.20 x 1.00)
           enum:
             - BA
             - BAG
