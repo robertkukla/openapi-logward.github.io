@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kukla x Logward x shiftX
-  version: 0.1.0
+  version: 0.2.0
   description: >
     Draft API for discussion with partner.
 
@@ -53,7 +53,7 @@ paths:
 
   /v1/logward/order:
     post:
-      summary: Create / upsert Logward order
+      summary: Create Logward order
       description: >
         This endpoint is used to create or upsert a transport order in the Intertrans system based on data provided by Logward / shiftX.
         The request contains the full order payload, including general order information, cargo details and transport unit data.
@@ -117,7 +117,7 @@ paths:
                         field: "transport_order.carrierScac"
                         message: "Carrier not found in Intertrans master data"
                         rejectedValue: "MAEU"
-                        expected: "Known carrier reference / mapping to Order.Carrier"
+                        expectedValue: "Known carrier reference / mapping to Order.Carrier"
         "500":
           description: Internal server error
           content:
@@ -138,6 +138,135 @@ paths:
                       - code: "SERVER ERROR"
                         field: "order"
                         message: "Division durch null"
+
+  /v1/logward/order/{shiftxId}:
+    patch:
+      summary: Update transport units of an existing order
+      description: >
+        Partially updates transport unit data for an existing order identified by its shiftX ID.
+
+        Each item in the request array is matched by `containerNumber`.
+        Only the fields provided in the request body are updated; omitted fields remain unchanged (true partial update semantics).
+
+        Updatable fields per transport unit:
+        - estimatedDeparturePol
+        - actualDeparturePol
+        - estimatedArrivalPod
+        - actualArrivalPod
+
+        If a `containerNumber` is not found within the referenced order, the item is rejected
+        with a validation error. The overall request is processed atomically: if any item fails
+        validation, no updates are applied.
+      operationId: patchLogwardOrder
+      parameters:
+        - name: shiftxId
+          in: path
+          required: true
+          description: External identifier of the order in the shiftX / Logward system.
+          schema:
+            type: string
+          example: "SX-2026-00142"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/transportOrderUpdateEnvelope"
+            examples:
+              UpdateDates:
+                summary: Update ETD / ATD / ETA / ATA for two containers
+                value:
+                  transport_order:
+                    transport_unit:
+                      - containerNumber: "WLS26280"
+                        estimatedDeparturePol: "2026-02-10T08:00:00Z"
+                        actualDeparturePol: "2026-02-10T09:15:00Z"
+                        estimatedArrivalPod: "2026-02-28T06:00:00Z"
+                        actualArrivalPod: "2026-02-28T07:30:00Z"
+                      - containerNumber: "MSCU1234567"
+                        estimatedArrivalPod: "2026-03-01T12:00:00Z"
+      responses:
+        "200":
+          description: Transport unit data updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/transportOrderResponse"
+              examples:
+                Updated:
+                  value:
+                    OrderUUID: "d2c99d32-7d8c-4987-899c-208d28cfed52"
+        "400":
+          description: Bad request (invalid JSON / format)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                InvalidJson:
+                  value:
+                    type: "bad_request"
+                    title: "Invalid JSON"
+                    status: 400
+                    detail: "Request body cannot be parsed"
+                    errorId: "c1a2b3d4-0000-4000-8000-111122223333"
+                    timestamp: "2026-01-20T12:34:56Z"
+                    instance: "/v1/logward/order/SX-2026-00142"
+        "404":
+          description: Order not found for the given shiftxId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                OrderNotFound:
+                  value:
+                    type: "not_found"
+                    title: "Order not found"
+                    status: 404
+                    detail: "No order found for shiftxId 'SX-2026-99999'"
+                    errorId: "f9e8d7c6-1234-4abc-9def-000011112222"
+                    timestamp: "2026-01-20T12:34:56Z"
+                    instance: "/v1/logward/order/SX-2026-99999"
+        "422":
+          description: Validation error (e.g. unknown containerNumber)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                ContainerNotFound:
+                  value:
+                    type: "validation_error"
+                    title: "Validation failed"
+                    status: 422
+                    detail: "One or more container numbers could not be matched"
+                    errorId: "a1b2c3d4-5678-4def-8abc-999988887777"
+                    timestamp: "2026-01-20T12:34:56Z"
+                    instance: "/v1/logward/order/SX-2026-00142"
+                    errors:
+                      - code: "CONTAINER_NOT_FOUND"
+                        field: "transport_unit[1].containerNumber"
+                        message: "Container not found in order"
+                        rejectedValue: "MSCU9999999"
+                        expectedValue: "A containerNumber that belongs to order SX-2026-00142"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                InternalError:
+                  value:
+                    type: "internal_error"
+                    title: "Internal server error"
+                    status: 500
+                    detail: "Unexpected error while processing request"
+                    errorId: "b7f3e2a1-9c4d-4e5f-a123-456789abcdef"
+                    timestamp: "2026-01-20T12:35:10Z"
+                    instance: "/v1/logward/order/SX-2026-00142"
+
 components:
   securitySchemes:
     basicAuth:
@@ -145,6 +274,69 @@ components:
       scheme: basic
 
   schemas:
+
+    # ── PATCH envelope ────────────────────────────────────────────────────────
+    transportOrderUpdateEnvelope:
+      type: object
+      required:
+        - transport_order
+      properties:
+        transport_order:
+          $ref: "#/components/schemas/transportOrderUpdate"
+
+    transportOrderUpdate:
+      type: object
+      description: >
+        Partial update payload for an existing transport order.
+        Currently supports updating transport unit date fields.
+        Additional top-level order fields may be added here in future versions.
+      properties:
+        transport_unit:
+          type: array
+          minItems: 1
+          description: >
+            List of transport unit updates. Each item is matched by containerNumber.
+            At least one date field must be present per item.
+          items:
+            $ref: "#/components/schemas/transportUnitUpdate"
+
+    transportUnitUpdate:
+      type: object
+      required:
+        - containerNumber
+      description: >
+        Partial update for a single transport unit, identified by containerNumber.
+        All date fields are optional; omitted fields are left unchanged.
+        At least one of the four date fields must be provided.
+      properties:
+        containerNumber:
+          type: string
+          example: "WLS26280"
+          description: >
+            Container number used to identify the transport unit within the order.
+            Must match an existing transport unit on the referenced order.
+        estimatedDeparturePol:
+          type: string
+          format: date-time
+          description: Estimated departure at port of loading (ISO 8601). Updates existing value if provided.
+          example: "2026-02-10T08:00:00Z"
+        actualDeparturePol:
+          type: string
+          format: date-time
+          description: Actual departure at port of loading (ISO 8601). Updates existing value if provided.
+          example: "2026-02-10T09:15:00Z"
+        estimatedArrivalPod:
+          type: string
+          format: date-time
+          description: Estimated arrival at port of discharge (ISO 8601). Updates existing value if provided.
+          example: "2026-02-28T06:00:00Z"
+        actualArrivalPod:
+          type: string
+          format: date-time
+          description: Actual arrival at port of discharge (ISO 8601). Updates existing value if provided.
+          example: "2026-02-28T07:30:00Z"
+
+    # ── POST schemas (unchanged) ───────────────────────────────────────────────
     transportOrderEnvelope:
       type: object
       required:
@@ -182,127 +374,46 @@ components:
           example: "TEN248392"
           description: >
             Purchase order number (likely Logward order number).
-
-            NEEDS-CLARIFICATION:
-            Mapping unclear: Order.Reference vs Order.Shipments.AdditionalInfoField1.
-          x-mapping:
-            fieldPath: "Order.Reference / Order.Shipments.AdditionalInfoField1"
-
         shiftxId:
           type: string
-          example: "TO12305"
           description: >
             External identifier from partner system.
-
-            NEEDS-CLARIFICATION:
-            Meaning and usage of this field is unclear.
-
         code:
           type: string
-          example: "C24234"
           description: >
             Partner-specific code.
-
-            NEEDS-CLARIFICATION:
-            Purpose and business meaning unclear.
-
         bookingAgentOffice1:
           type: string
-          example: "SHIFT X"
           description: >
             Booking agent office.
-
-            NEEDS-CLARIFICATION:
-            Field purpose and expected content unclear.
-
-        consigneeName:
-          type: string
-          example: "KUKLA MUENCHEN"
-          description: >
-            Consignee name .
-
-            NEEDS-CLARIFICATION:
-            Prefer reference, string only as fallback.
-          x-mapping:
-            fieldPath: "Order.Consignee"
-        
-        consigneeCode:
-          type: string
-          example: "DE2941317"
-          description: >
-            Consignee EORI or VATID.
-
-            NEEDS-CLARIFICATION:
-            Prefer reference, string only as fallback.
-          x-mapping:
-            fieldPath: "Order.Consignee"
-        
-        consigneeCodeType:
-          type: string
-          description: >
-            Code type.
-
-            Allowed values:
-            EORI  
-            VATID
- 
-          enum:
-            - EORI
-            - VATID
-          example: "EORI"
-
+        consignee_master_data:
+          $ref: "#/components/schemas/consignee"
         carrierName:
           type: string
-          example: "Deutsche Africa-Linien"
           description: >
             Carrier name.
-            NEEDS-CLARIFICATION:
-            SCAC definition and mapping to Intertrans addresses. Reference required.
-          x-mapping:
-            fieldPath: "Order.Carrier"
-
         carrierScac:
           type: string
-          example: "DALU"
           description: >
             Carrier identifier (SCAC).
-
-            NEEDS-CLARIFICATION:
-            SCAC definition and mapping to Intertrans addresses. Reference required.
-          x-mapping:
-            fieldPath: "Order.Carrier"
-
         polName:
           type: string
-          example: "Hamburg"
+          example: "DEHAM"
           description: Port of loading UN/LOCODE (e.g. DEHAM).
-          x-mapping:
-            fieldPath: "Order.Address.POL.Ref"
-
         polLocode:
           type: string
           example: "DEHAM"
           description: Port of loading UN/LOCODE (e.g. DEHAM).
-          x-mapping:
-            fieldPath: "Order.Address.POL.Ref"            
-            
         podName:
           type: string
-          example: "Rotterdam"
+          example: "NLRTM"
           description: Port of discharge NAME.
-          x-mapping:
-            fieldPath: "Order.Address.POD.Ref"
-
         podLocode:
           type: string
           example: "NLRTM"
           description: Port of discharge UN/LOCODE (e.g. NLRTM).
-          x-mapping:
-            fieldPath: "Order.Address.POD.Ref"
-
         cargo:
           $ref: "#/components/schemas/cargo"
-
         transport_unit:
           type: array
           items:
@@ -324,63 +435,59 @@ components:
           description: Cargo description
           x-mapping:
             fieldPath: "Order.Shipment.Shipment"
-
         itemQuantity:
           type: number
           description: Quantity of transported goods
           x-mapping:
             fieldPath: "Order.Shipment.Quantity"
-
         packageQuantity:
           type: number
           description: Number of packages
           x-mapping:
             fieldPath: "Order.Shipment.PackageQuantity"
-
         packagingType:
           type: string
           description: >
             Packaging type code.
 
             Allowed values:
-            BA  â€“ Ballen
-            BAG â€“ Bags
-            BB  â€“ Bigbags
-            CA  â€“ Cases
-            CC  â€“ CC
-            COL â€“ Colli
-            CT  â€“ Container
-            DD  â€“ DÃ¼sseldorfer Paletten
-            DD-K â€“ DDP Konto Tauschpalette
-            DD-N â€“ DDP keine Tauschpalette
-            DD-T â€“ DDP Tauschpalette
-            DRM â€“ Drum
-            EP  â€“ Einwegpalette
-            EU  â€“ Europaletten keine Tauschpalette
-            EU-K â€“ Europaletten Konto Tauschpalette
-            EU-N â€“ Europaletten keine Tauschpalette
-            EU-T â€“ Europaletten Tauschpalette
-            EU-V â€“ Europaletten Voucher
-            F   â€“ FÃ¤sser
-            FLS â€“ Flaschen
-            FP  â€“ FP
-            FT  â€“ Flexi Tank
-            GP  â€“ GP
-            HHP â€“ Heilbronner Halbpalette
-            HP  â€“ Halb-Palette
-            IND â€“ Industrie Paletten
-            KAR â€“ Kartons
-            LDG â€“ Ladung
-            LDM â€“ Lademeter
-            PAL â€“ Palette gemischt
-            PKG â€“ Packages
-            SAC â€“ SÃ¤cke
-            SLS â€“ Slipsheets
-            SP  â€“ Stellplatz
-            STK â€“ StÃ¼ck
-            TC  â€“ Tankcontainer
-            test.PAL. â€“ test.PAL.
-            VMF â€“ AMERICAN / VMF (1.20 x 1.00)
+            BA  - Ballen
+            BAG - Bags
+            BB  - Bigbags
+            CA  - Cases
+            CC  - CC
+            COL - Colli
+            CT  - Container
+            DD  - Düsseldorfer Paletten
+            DD-K - DDP Konto Tauschpalette
+            DD-N - DDP keine Tauschpalette
+            DD-T - DDP Tauschpalette
+            DRM - Drum
+            EP  - Einwegpalette
+            EU  - Europaletten keine Tauschpalette
+            EU-K - Europaletten Konto Tauschpalette
+            EU-N - Europaletten keine Tauschpalette
+            EU-T - Europaletten Tauschpalette
+            EU-V - Europaletten Voucher
+            F   - Fässer
+            FLS - Flaschen
+            FP  - FP
+            FT  - Flexi Tank
+            GP  - GP
+            HHP - Heilbronner Halbpalette
+            HP  - Halb-Palette
+            IND - Industrie Paletten
+            KAR - Kartons
+            LDG - Ladung
+            LDM - Lademeter
+            PAL - Palette gemischt
+            PKG - Packages
+            SAC - Säcke
+            SLS - Slipsheets
+            SP  - Stellplatz
+            STK - Stück
+            TC  - Tankcontainer
+            VMF - AMERICAN / VMF (1.20 x 1.00)
           enum:
             - BA
             - BAG
@@ -418,12 +525,10 @@ components:
             - SP
             - STK
             - TC
-            - test.PAL.
             - VMF
           example: "EU"
           x-mapping:
             fieldPath: "Order.Shipment.PackageType"
-
         grossWeight:
           type: number
           description: Gross weight of goods
@@ -441,74 +546,92 @@ components:
           maxLength: 50
           example: "20' STANDARD"
           description: Container type
-          x-mapping:
-            fieldPath: "Order.Shipment.Note7"
-
         containerNumber:
           type: string
           example: "WLS26280"
           description: Container number
-          x-mapping:
-            fieldPath: "Order.Shipment.Marking"
-
         estimatedDeparturePol:
           type: string
           format: date-time
           description: Estimated departure at POL (ISO 8601)
-
         actualDeparturePol:
           type: string
           format: date-time
           description: Actual departure at POL (ISO 8601)
-
         estimatedArrivalPod:
           type: string
           format: date-time
           description: Estimated arrival at POD (ISO 8601)
-
         actualArrivalPod:
           type: string
           format: date-time
           description: Actual arrival at POD (ISO 8601)
-
         actualTotalWeight:
           type: number
           description: >
             Total actual weight.
-
-            NEEDS-CLARIFICATION:
-            Difference vs grossWeight and target field unclear.
-
         informationVesselName:
           type: string
           maxLength: 50
           example: "CMA CGM Monitor"
           description: Vessel name
-          x-mapping:
-            fieldPath: "Order.Shipment.Note12"
-
         voyage:
           type: string
           maxLength: 50
           example: "1234x45"
           description: Voyage number
-          x-mapping:
-            fieldPath: "Order.Shipment.NoteString1"
-
         bookingNumber:
           type: string
           maxLength: 50
           example: "2700009966"
           description: Booking number
-          x-mapping:
-            fieldPath: "Order.Shipment.Note9"
-
         mblNoContainer:
           type: string
           maxLength: 50
           description: Master B/L number
-          x-mapping:
-            fieldPath: "Order.Shipment.Note10"
+
+    consignee:
+      type: object
+      description: Standard error response (Problem Details style)
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Consignee name.
+          example: Muster Firma
+        bco:
+          type: string
+          description: Beneficial Cargo Owner
+          example: 563245
+        vatNumber:
+          type: string
+          description: A unique number that identifies a taxable person or non-taxable legal entity registered for VAT
+          example: DE123456789
+        eoriNumber:
+          type: string
+          description: Economic Operators Registration and Identification
+          example: DE123456789012345
+        street:
+          type: string
+          description: Consignee street
+          example: Main street
+        houseNumber:
+          type: string
+          description: Consignee house number
+          example: 23a
+        postalCode:
+          type: string
+          description: Consignee postal code
+          example: 86000
+        city:
+          type: string
+          description: Consignee city
+          example: Berlin
+        country:
+          type: string
+          description: Country code in ISO 3166 (Alpha-2)
+          example: DE
 
     serviceException:
       type: object
@@ -578,7 +701,7 @@ components:
           example: "Carrier not found in Intertrans master data"
         rejectedValue:
           description: The value that caused the error (any type)
-        expected:
+        expectedValue:
           type: string
           description: Optional hint what is expected
           example: "Known carrier reference / mapping to Order.Carrier"
