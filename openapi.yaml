@@ -47,9 +47,7 @@ paths:
                     title: "Unauthorized"
                     status: 401
                     detail: "Invalid credentials"
-                    errorId: "1c6a6f55-3b69-4b69-9c2c-2b2c4c3c8c0a"
                     timestamp: "2026-01-20T12:34:56Z"
-                    instance: "/v1/test"
 
   /v1/logward/order:
     post:
@@ -76,8 +74,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/transportOrderResponse"
+              examples:
+                Created:
+                  value:
+                    transport_order:
+                      shiftxId: "SX-2026-00142"
+                      orderUUID: "94add03e-2c47-11f1-b413-005056a5ad0b"
+                      status: "accepted"
+                      processedAt: "2026-02-10T08:00:00Z"
+                      transport_unit:
+                        - containerNumber: "WLS26280"
+                          shipmentUUID: "f227c8f1-e984-4444-ae2e-9897adbec873"
+                        - containerNumber: "MSCU1234567"
+                          shipmentUUID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         "400":
-          description: Bad request (invalid JSON / format)
+          description: Bad request — invalid JSON, validation error, or unknown reference
           content:
             application/json:
               schema:
@@ -89,29 +100,18 @@ paths:
                     title: "Invalid JSON"
                     status: 400
                     detail: "Request body cannot be parsed"
-                    errorId: "b2f5e1d6-5a5f-4c0f-b6d6-4d5a0b0d7c1e"
                     timestamp: "2026-01-20T12:34:56Z"
-                    instance: "/v1/logward/order"
                     errors:
                       - code: "BAD_JSON"
                         field: "transport_order.shiftxId"
                         message: "Field 'transport_order.shiftxId' is required"
-        "422":
-          description: Validation / mapping error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/serviceException"
-              examples:
                 MappingNotFoundCarrier:
                   value:
                     type: "validation_error"
                     title: "Validation failed"
-                    status: 422
+                    status: 400
                     detail: "Some fields contain unknown references"
-                    errorId: "e7c31f6c-2c43-4d4f-8a52-5f8b9b5fd0c2"
                     timestamp: "2026-01-20T12:34:56Z"
-                    instance: "/v1/logward/order"
                     errors:
                       - code: "MAPPING_NOT_FOUND"
                         field: "transport_order.carrierScac"
@@ -131,15 +131,12 @@ paths:
                     title: "Internal server error"
                     status: 500
                     detail: "Unexpected error while processing request"
-                    errorId: "a3c91c0b-5c2b-4a8e-9d5b-1f7b8f0e3a21"
                     timestamp: "2026-01-20T12:35:10Z"
-                    instance: "/v1/logward/order"
                     errors:
                       - code: "SERVER ERROR"
                         field: "order"
                         message: "Division durch null"
 
-  /v1/logward/order/{shiftxId}:
     patch:
       summary: Update transport units of an existing order
       description: >
@@ -158,14 +155,6 @@ paths:
         with a validation error. The overall request is processed atomically: if any item fails
         validation, no updates are applied.
       operationId: patchLogwardOrder
-      parameters:
-        - name: shiftxId
-          in: path
-          required: true
-          description: External identifier of the order in the shiftX / Logward system.
-          schema:
-            type: string
-          example: "SX-2026-00142"
       requestBody:
         required: true
         content:
@@ -177,6 +166,7 @@ paths:
                 summary: Update ETD / ATD / ETA / ATA for two containers
                 value:
                   transport_order:
+                    shiftxId: "SX-2026-00142"
                     transport_unit:
                       - containerNumber: "WLS26280"
                         estimatedDeparturePol: "2026-02-10T08:00:00Z"
@@ -195,9 +185,21 @@ paths:
               examples:
                 Updated:
                   value:
-                    OrderUUID: "d2c99d32-7d8c-4987-899c-208d28cfed52"
+                    transport_order:
+                      shiftxId: "SX-2026-00142"
+                      orderUUID: "94add03e-2c47-11f1-b413-005056a5ad0b"
+                      status: "updated"
+                      processedAt: "2026-02-10T09:15:00Z"
+                      transport_unit:
+                        - containerNumber: "WLS26280"
+                          shipmentUUID: "f227c8f1-e984-4444-ae2e-9897adbec873"
+                          estimatedDeparturePol: "2026-02-10T08:00:00Z"
+                          actualArrivalPod: "2026-02-28T07:30:00Z"
+                        - containerNumber: "MSCU1234567"
+                          shipmentUUID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                          estimatedArrivalPod: "2026-03-01T12:00:00Z"
         "400":
-          description: Bad request (invalid JSON / format)
+          description: Bad request — invalid JSON, validation error, or unknown reference
           content:
             application/json:
               schema:
@@ -209,47 +211,27 @@ paths:
                     title: "Invalid JSON"
                     status: 400
                     detail: "Request body cannot be parsed"
-                    errorId: "c1a2b3d4-0000-4000-8000-111122223333"
                     timestamp: "2026-01-20T12:34:56Z"
-                    instance: "/v1/logward/order/SX-2026-00142"
-        "404":
-          description: Order not found for the given shiftxId
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/serviceException"
-              examples:
-                OrderNotFound:
-                  value:
-                    type: "not_found"
-                    title: "Order not found"
-                    status: 404
-                    detail: "No order found for shiftxId 'SX-2026-99999'"
-                    errorId: "f9e8d7c6-1234-4abc-9def-000011112222"
-                    timestamp: "2026-01-20T12:34:56Z"
-                    instance: "/v1/logward/order/SX-2026-99999"
-        "422":
-          description: Validation error (e.g. unknown containerNumber)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/serviceException"
-              examples:
                 ContainerNotFound:
                   value:
                     type: "validation_error"
                     title: "Validation failed"
-                    status: 422
+                    status: 400
                     detail: "One or more container numbers could not be matched"
-                    errorId: "a1b2c3d4-5678-4def-8abc-999988887777"
                     timestamp: "2026-01-20T12:34:56Z"
-                    instance: "/v1/logward/order/SX-2026-00142"
                     errors:
                       - code: "CONTAINER_NOT_FOUND"
                         field: "transport_unit[1].containerNumber"
                         message: "Container not found in order"
                         rejectedValue: "MSCU9999999"
                         expectedValue: "A containerNumber that belongs to order SX-2026-00142"
+                OrderNotFound:
+                  value:
+                    type: "not_found"
+                    title: "Order not found"
+                    status: 400
+                    detail: "No order found for shiftxId 'SX-2026-99999'"
+                    timestamp: "2026-01-20T12:34:56Z"
         "500":
           description: Internal server error
           content:
@@ -263,9 +245,7 @@ paths:
                     title: "Internal server error"
                     status: 500
                     detail: "Unexpected error while processing request"
-                    errorId: "b7f3e2a1-9c4d-4e5f-a123-456789abcdef"
                     timestamp: "2026-01-20T12:35:10Z"
-                    instance: "/v1/logward/order/SX-2026-00142"
 
 components:
   securitySchemes:
@@ -286,11 +266,17 @@ components:
 
     transportOrderUpdate:
       type: object
+      required:
+        - shiftxId
       description: >
         Partial update payload for an existing transport order.
         Currently supports updating transport unit date fields.
         Additional top-level order fields may be added here in future versions.
       properties:
+        shiftxId:
+          type: string
+          description: External identifier of the order in the shiftX / Logward system.
+          example: "SX-2026-00142"
         transport_unit:
           type: array
           minItems: 1
@@ -348,14 +334,92 @@ components:
     transportOrderResponse:
       type: object
       required:
-        - OrderUUID
+        - transport_order
       properties:
-        OrderUUID:
+        transport_order:
+          $ref: "#/components/schemas/transportOrderResponseBody"
+
+    transportOrderResponseBody:
+      type: object
+      required:
+        - shiftxId
+        - orderUUID
+        - status
+        - processedAt
+      description: >
+        Response body for both POST (create) and PATCH (update) operations.
+        transport_unit is only returned for PATCH responses and contains the updated fields.
+      properties:
+        shiftxId:
+          type: string
+          description: External identifier echoed back from the request.
+          example: "SX-2026-00142"
+        orderUUID:
           type: string
           minLength: 36
           maxLength: 36
-          example: "d2c99d32-7d8c-4987-899c-208d28cfed52"
-          description: Unique identifier of the created or updated order in Intertrans.
+          description: Internal Intertrans order identifier. For troubleshooting only.
+          example: "94add03e-2c47-11f1-b413-005056a5ad0b"
+        status:
+          type: string
+          description: Outcome of the operation.
+          enum:
+            - accepted
+            - updated
+          example: "accepted"
+        processedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the request was processed by Intertrans.
+          example: "2026-02-10T08:00:00Z"
+        transport_unit:
+          type: array
+          description: >
+            Returned for both POST and PATCH responses.
+            For POST: contains containerNumber and shipmentUUID for each transport unit.
+            For PATCH: additionally includes the fields that were updated.
+          items:
+            $ref: "#/components/schemas/transportUnitResponse"
+
+    transportUnitResponse:
+      type: object
+      required:
+        - containerNumber
+        - shipmentUUID
+      description: >
+        Confirmed transport unit data. Only fields that were updated are returned
+        alongside the identifiers.
+      properties:
+        containerNumber:
+          type: string
+          description: Container number as provided in the request.
+          example: "WLS26280"
+        shipmentUUID:
+          type: string
+          minLength: 36
+          maxLength: 36
+          description: Internal Intertrans shipment identifier. For troubleshooting only.
+          example: "f227c8f1-e984-4444-ae2e-9897adbec873"
+        estimatedDeparturePol:
+          type: string
+          format: date-time
+          description: Updated value, returned only if it was changed.
+          example: "2026-02-10T08:00:00Z"
+        actualDeparturePol:
+          type: string
+          format: date-time
+          description: Updated value, returned only if it was changed.
+          example: "2026-02-10T09:15:00Z"
+        estimatedArrivalPod:
+          type: string
+          format: date-time
+          description: Updated value, returned only if it was changed.
+          example: "2026-02-28T06:00:00Z"
+        actualArrivalPod:
+          type: string
+          format: date-time
+          description: Updated value, returned only if it was changed.
+          example: "2026-02-28T07:30:00Z"
 
     transportOrder:
       type: object
@@ -640,7 +704,6 @@ components:
         - type
         - title
         - status
-        - errorId
         - timestamp
       properties:
         type:
@@ -660,19 +723,11 @@ components:
           type: string
           description: Human-readable explanation
           example: "Some fields contain unknown references"
-        errorId:
-          type: string
-          description: Unique id for troubleshooting
-          example: "e7c31f6c-2c43-4d4f-8a52-5f8b9b5fd0c2"
         timestamp:
           type: string
           format: date-time
           description: Error time in ISO 8601
           example: "2026-01-20T12:34:56Z"
-        instance:
-          type: string
-          description: Request path or correlation pointer
-          example: "/v1/logward/order"
         errors:
           type: array
           description: Optional list of field-level issues
