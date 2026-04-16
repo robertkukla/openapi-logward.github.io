@@ -10,9 +10,9 @@ info:
     - Date/time fields use ISO 8601 (RFC 3339), e.g. 2026-01-20T12:34:56Z.
 
 servers:
-  - url: https://intertrans.cloud/IT8Kukla/hs/kukla/
+  - url: https://www.intertrans.cloud/IT8Kukla/hs/kukla/
     description: PRODUCTION
-  - url: https://intertrans.cloud/sandbox/hs/kukla/
+  - url: https://www.intertrans.cloud/sandbox/hs/kukla/
     description: SANDBOX
 
 security:
