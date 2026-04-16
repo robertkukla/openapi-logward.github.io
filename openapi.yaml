@@ -12,7 +12,7 @@ info:
 servers:
   - url: https://intertrans.cloud/IT8Kukla/hs/kukla/
     description: PRODUCTION
-  - url: https://intertrans.cloud/IT8KuklaIgor/hs/kukla/
+  - url: https://intertrans.cloud/sandbox/hs/kukla/
     description: SANDBOX
 
 security:
