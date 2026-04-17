@@ -425,10 +425,13 @@ components:
       type: object
       required:
         - purchaseOrderNumber
-        - consigneeNameDetails
+        - shiftxId
+        - consignee_master_data
         - carrierScac
+        - polName
         - polLocode
-        - podLocode
+        - podName
+        - podLocode        
         - cargo
         - transport_unit
       properties:
