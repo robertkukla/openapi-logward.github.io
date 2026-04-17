@@ -427,6 +427,7 @@ components:
         - purchaseOrderNumber
         - shiftxId
         - consignee_master_data
+         - carrierName
         - carrierScac
         - polName
         - polLocode
