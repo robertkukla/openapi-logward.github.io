@@ -247,6 +247,104 @@ paths:
                     detail: "Unexpected error while processing request"
                     timestamp: "2026-01-20T12:35:10Z"
 
+  /v1/logward/file:
+    post:
+      summary: Attach a file to an existing order
+      description: >
+        Attaches a Base64-encoded file to an existing transport order identified by its shiftX ID.
+        The order must already exist in the system before a file can be attached.
+        On successful processing, the API echoes back the order identifiers and a "file_added" status.
+      operationId: postLogwardFile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/fileOrderEnvelope"
+            examples:
+              AttachFile:
+                summary: Attach an HBL document to an order
+                value:
+                  transport_order:
+                    shiftxId: "TEN005"
+                    file:
+                      name: "test"
+                      extension: "txt"
+                      type: "HBL"
+                      base64: "SGVsbG8gV29ybGQh"
+      responses:
+        "200":
+          description: File successfully attached to the order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/transportOrderResponse"
+              examples:
+                FileAdded:
+                  value:
+                    transport_order:
+                      shiftxId: "TEN005"
+                      orderUUID: "2f08d8ea-3c98-11f1-b415-005056a5ad0b"
+                      status: "file_added"
+                      processedAt: "2026-04-20T16:00:53Z"
+                      transport_unit: []
+        "400":
+          description: Bad request — invalid JSON, validation error, or order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                InvalidJson:
+                  value:
+                    type: "bad_request"
+                    title: "Invalid JSON"
+                    status: 400
+                    detail: "Request body cannot be parsed"
+                    timestamp: "2026-01-20T12:34:56Z"
+                    errors:
+                      - code: "BAD_JSON"
+                        field: "transport_order.shiftxId"
+                        message: "Field 'transport_order.shiftxId' is required"
+                OrderNotFound:
+                  value:
+                    type: "not_found"
+                    title: "Order not found"
+                    status: 400
+                    detail: "No order found for shiftxId 'TEN005'"
+                    timestamp: "2026-01-20T12:34:56Z"
+                InvalidFileType:
+                  value:
+                    type: "validation_error"
+                    title: "Validation failed"
+                    status: 400
+                    detail: "Check file error"
+                    timestamp: "2026-04-20T16:02:32Z"
+                    errors:
+                      - code: "MAPPING_NOT_FOUND"
+                        field: "requestBody.transport_order.files.type"
+                        message: "File TYPE not found in Intertrans master data"
+                        rejectedValue: "HBD"
+                        expectedValue: "See documentation"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/serviceException"
+              examples:
+                InternalError:
+                  value:
+                    type: "internal_error"
+                    title: "Internal server error"
+                    status: 500
+                    detail: "Unexpected error while processing request"
+                    timestamp: "2026-01-20T12:35:10Z"
+                    errors:
+                      - code: "SERVER_ERROR"
+                        field: "file"
+                        message: "Unexpected error while saving file"
+
 components:
   securitySchemes:
     basicAuth:
@@ -322,7 +420,69 @@ components:
           description: Actual arrival at port of discharge (ISO 8601). Updates existing value if provided.
           example: "2026-02-28T07:30:00Z"
 
-    # ── POST schemas (unchanged) ───────────────────────────────────────────────
+    # ── FILE envelope ─────────────────────────────────────────────────────────
+    fileOrderEnvelope:
+      type: object
+      required:
+        - transport_order
+      properties:
+        transport_order:
+          $ref: "#/components/schemas/fileOrder"
+
+    fileOrder:
+      type: object
+      required:
+        - shiftxId
+        - file
+      properties:
+        shiftxId:
+          type: string
+          description: External identifier of the order in the shiftX / Logward system.
+          example: "TEN005"
+        file:
+          $ref: "#/components/schemas/orderFile"
+
+    orderFile:
+      type: object
+      required:
+        - name
+        - extension
+        - type
+        - base64
+      properties:
+        name:
+          type: string
+          description: File name without extension.
+          example: "test"
+        extension:
+          type: string
+          description: File extension without leading dot.
+          example: "txt"
+        type:
+          type: string
+          description: >
+            Document type code.
+
+            Allowed values:
+            HBL                       - House Bill of Lading
+            MBL                       - Master Bill of Lading
+            PackingList               - Packing List
+            CommercialInvoice         - Commercial Invoice
+            DangerousGoodsDeclaration - Dangerous Goods Declaration
+          enum:
+            - HBL
+            - MBL
+            - PackingList
+            - CommercialInvoice
+            - DangerousGoodsDeclaration
+          example: "HBL"
+        base64:
+          type: string
+          format: byte
+          description: Base64-encoded file content.
+          example: "SGVsbG8gV29ybGQh"
+
+    # ── POST schemas ───────────────────────────────────────────────────────────
     transportOrderEnvelope:
       type: object
       required:
@@ -347,8 +507,8 @@ components:
         - status
         - processedAt
       description: >
-        Response body for both POST (create) and PATCH (update) operations.
-        transport_unit is only returned for PATCH responses and contains the updated fields.
+        Response body for POST (create), PATCH (update) and file attachment operations.
+        transport_unit is returned for all responses; for file operations it is an empty array.
       properties:
         shiftxId:
           type: string
@@ -366,6 +526,7 @@ components:
           enum:
             - accepted
             - updated
+            - file_added
           example: "accepted"
         processedAt:
           type: string
@@ -375,9 +536,10 @@ components:
         transport_unit:
           type: array
           description: >
-            Returned for both POST and PATCH responses.
+            Returned for all responses.
             For POST: contains containerNumber and shipmentUUID for each transport unit.
             For PATCH: additionally includes the fields that were updated.
+            For file operations: empty array.
           items:
             $ref: "#/components/schemas/transportUnitResponse"
 
@@ -427,12 +589,12 @@ components:
         - purchaseOrderNumber
         - shiftxId
         - consignee_master_data
-         - carrierName
+        - carrierName
         - carrierScac
         - polName
         - polLocode
         - podName
-        - podLocode        
+        - podLocode
         - cargo
         - transport_unit
       properties:
@@ -660,7 +822,7 @@ components:
 
     consignee:
       type: object
-      description: Standard error response (Problem Details style)
+      description: Consignee master data
       required:
         - name
       properties:
