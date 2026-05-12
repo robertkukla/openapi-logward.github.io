@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Kukla x Logward x shiftX
-  version: 0.2.0
+  version: 0.3.0
   description: >
     Draft API for discussion with partner.
 
@@ -54,7 +54,7 @@ paths:
       summary: Create Logward order
       description: >
         This endpoint is used to create or upsert a transport order in the Intertrans system based on data provided by Logward / shiftX.
-        The request contains the full order payload, including general order information, cargo details and transport unit data.
+        The request contains the full order payload, including general order information and combined cargo/transport unit data.
         If an order with the same external reference already exists, the system may update the existing order instead of creating a new one (upsert behavior).
         Some information (for example, actual arrival dates) may be unknown at the time of order creation and can be provided later via a dedicated update endpoint.
         On successful processing, the API returns a unique OrderUUID, which can be used for further updates or troubleshooting.
@@ -67,6 +67,64 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/transportOrderEnvelope"
+            examples:
+              CreateOrder:
+                summary: Create order with two containers
+                value:
+                  transport_order:
+                    purchaseOrderNumber: "11168"
+                    shiftxId: "00026812"
+                    code: "30584ec5bc50"
+                    bookingAgentOffice1: "GREAT CHINA TRANSPORTATION CO., LTD"
+                    carrierScac: "MAEU"
+                    carrierShortName: "Maersk Line"
+                    polLocode: "TWTXG"
+                    polName: "Taichung"
+                    podLocode: "NLRTM"
+                    podName: "Rotterdam"
+                    telexUploaded: true
+                    consignee_master_data:
+                      bco: "Dolle Wohnregale GmbH & Co. KG"
+                      street: "Werner-von-Siemens-Straße"
+                      houseNumber: "13"
+                      postalCode: "68649"
+                      location1: "Gross-Rohrheim"
+                      country: "Germany"
+                      vatNumber: "DE182455120"
+                      eoriNumber: "DE2964279"
+                    cargo_transport_unit:
+                      - itemDescription: "WALL SHELVES"
+                        itemQuantity: 1
+                        packageQuantity: 46
+                        packagingType: "PKG"
+                        grossWeight: 11590
+                        containerType: "20GP"
+                        containerNumber: "MSKU1234567"
+                        estimatedDeparturePol: "2026-04-15T08:30:00Z"
+                        actualDeparturePol: "2026-04-16T11:05:00Z"
+                        estimatedArrivalPod: "2026-04-24T06:00:00Z"
+                        actualArrivalPod: "2026-04-24T05:42:00Z"
+                        actualTotalWeight: 18432.5
+                        informationVesselName: "MSC TRIESTE"
+                        voyage: "QB613W"
+                        bookingNumber: "EBKG16285416"
+                        mblNoContainer: "MAEU987654"
+                      - itemDescription: "FURNITURE PARTS"
+                        itemQuantity: 1
+                        packageQuantity: 32
+                        packagingType: "KAR"
+                        grossWeight: 6840
+                        containerType: "40HC"
+                        containerNumber: "MSKU7654321"
+                        estimatedDeparturePol: "2026-04-15T08:30:00Z"
+                        actualDeparturePol: "2026-04-16T11:05:00Z"
+                        estimatedArrivalPod: "2026-04-24T06:00:00Z"
+                        actualArrivalPod: "2026-04-24T05:42:00Z"
+                        actualTotalWeight: 23680.75
+                        informationVesselName: "MSC TRIESTE"
+                        voyage: "QB613W"
+                        bookingNumber: "EBKG16285417"
+                        mblNoContainer: "MAEU987655"
       responses:
         "200":
           description: Transport order accepted
@@ -588,68 +646,69 @@ components:
       required:
         - purchaseOrderNumber
         - shiftxId
-        - consignee_master_data
-        - carrierName
         - carrierScac
-        - polName
+        - carrierShortName
         - polLocode
-        - podName
+        - polName
         - podLocode
-        - cargo
-        - transport_unit
+        - podName
+        - consignee_master_data
+        - cargo_transport_unit
       properties:
         purchaseOrderNumber:
           type: string
           maxLength: 50
-          example: "TEN248392"
-          description: >
-            Purchase order number (likely Logward order number).
+          example: "11168"
+          description: Customer or order reference allocated by the purchasing party.
         shiftxId:
           type: string
-          description: >
-            External identifier from partner system.
+          description: Unique ShiftX identifier for the transport order.
         code:
           type: string
-          description: >
-            Partner-specific code.
+          description: Internal process code used by Logward.
         bookingAgentOffice1:
           type: string
-          description: >
-            Booking agent office.
+          description: Name of the responsible booking agent office.
+        telexUploaded:
+          type: boolean
+          description: Indicator whether a telex release applies.
+          example: true
         consignee_master_data:
           $ref: "#/components/schemas/consignee"
-        carrierName:
-          type: string
-          description: >
-            Carrier name.
         carrierScac:
           type: string
-          description: >
-            Carrier identifier (SCAC).
-        polName:
+          description: Carrier SCAC code.
+          example: "MAEU"
+        carrierShortName:
           type: string
-          example: "DEHAM"
-          description: Port of loading UN/LOCODE (e.g. DEHAM).
+          description: Carrier name corresponding to the carrier SCAC.
+          example: "Maersk Line"
         polLocode:
           type: string
-          example: "DEHAM"
-          description: Port of loading UN/LOCODE (e.g. DEHAM).
-        podName:
+          example: "TWTXG"
+          description: UN/LOCODE of Port of Loading.
+        polName:
           type: string
-          example: "NLRTM"
-          description: Port of discharge NAME.
+          example: "Taichung"
+          description: Name of Port of Loading.
         podLocode:
           type: string
           example: "NLRTM"
-          description: Port of discharge UN/LOCODE (e.g. NLRTM).
-        cargo:
-          $ref: "#/components/schemas/cargo"
-        transport_unit:
+          description: UN/LOCODE of Port of Discharge.
+        podName:
+          type: string
+          example: "Rotterdam"
+          description: Name of Port of Discharge.
+        cargo_transport_unit:
           type: array
+          minItems: 1
+          description: >
+            Combined cargo and transport unit data. Each element represents one container
+            with its associated cargo details and transport dates.
           items:
-            $ref: "#/components/schemas/transportUnit"
+            $ref: "#/components/schemas/cargoTransportUnit"
 
-    cargo:
+    cargoTransportUnit:
       type: object
       required:
         - itemDescription
@@ -657,22 +716,30 @@ components:
         - packageQuantity
         - packagingType
         - grossWeight
+        - containerType
+        - containerNumber
+      description: >
+        Combined cargo and transport unit record. Each entry represents one container
+        together with its cargo details and optional transport date information.
       properties:
+        # ── Cargo fields ──────────────────────────────────────────────────────
         itemDescription:
           type: string
           maxLength: 200
-          example: "Food on pallets"
-          description: Cargo description
+          example: "WALL SHELVES"
+          description: Cargo description.
           x-mapping:
             fieldPath: "Order.Shipment.Shipment"
         itemQuantity:
           type: number
-          description: Quantity of transported goods
+          description: Quantity of transported goods.
+          example: 1
           x-mapping:
             fieldPath: "Order.Shipment.Quantity"
         packageQuantity:
           type: number
-          description: Number of packages
+          description: Number of packages.
+          example: 46
           x-mapping:
             fieldPath: "Order.Shipment.PackageQuantity"
         packagingType:
@@ -756,112 +823,108 @@ components:
             - STK
             - TC
             - VMF
-          example: "EU"
+          example: "PKG"
           x-mapping:
             fieldPath: "Order.Shipment.PackageType"
         grossWeight:
           type: number
-          description: Gross weight of goods
+          description: Gross weight of goods.
+          example: 11590
           x-mapping:
             fieldPath: "Order.Shipment.ActualWeight"
-
-    transportUnit:
-      type: object
-      required:
-        - containerType
-        - containerNumber
-      properties:
+        # ── Transport unit fields ─────────────────────────────────────────────
         containerType:
           type: string
           maxLength: 50
-          example: "20' STANDARD"
-          description: Container type
+          example: "20GP"
+          description: Container type.
         containerNumber:
           type: string
-          example: "WLS26280"
-          description: Container number
+          example: "MSKU1234567"
+          description: Container number.
         estimatedDeparturePol:
           type: string
           format: date-time
-          description: Estimated departure at POL (ISO 8601)
+          description: Estimated departure at POL (ISO 8601).
+          example: "2026-04-15T08:30:00Z"
         actualDeparturePol:
           type: string
           format: date-time
-          description: Actual departure at POL (ISO 8601)
+          description: Actual departure at POL (ISO 8601).
+          example: "2026-04-16T11:05:00Z"
         estimatedArrivalPod:
           type: string
           format: date-time
-          description: Estimated arrival at POD (ISO 8601)
+          description: Estimated arrival at POD (ISO 8601).
+          example: "2026-04-24T06:00:00Z"
         actualArrivalPod:
           type: string
           format: date-time
-          description: Actual arrival at POD (ISO 8601)
+          description: Actual arrival at POD (ISO 8601).
+          example: "2026-04-24T05:42:00Z"
         actualTotalWeight:
           type: number
-          description: >
-            Total actual weight.
+          description: Total actual weight.
+          example: 18432.5
         informationVesselName:
           type: string
           maxLength: 50
-          example: "CMA CGM Monitor"
-          description: Vessel name
+          example: "MSC TRIESTE"
+          description: Vessel name.
         voyage:
           type: string
           maxLength: 50
-          example: "1234x45"
-          description: Voyage number
+          example: "QB613W"
+          description: Voyage number.
         bookingNumber:
           type: string
           maxLength: 50
-          example: "2700009966"
-          description: Booking number
+          example: "EBKG16285416"
+          description: Booking number.
         mblNoContainer:
           type: string
           maxLength: 50
-          description: Master B/L number
+          example: "MAEU987654"
+          description: Master B/L number.
 
     consignee:
       type: object
       description: Consignee master data
       required:
-        - name
+        - bco
       properties:
-        name:
-          type: string
-          description: Consignee name.
-          example: Muster Firma
         bco:
           type: string
-          description: Beneficial Cargo Owner
-          example: 563245
+          description: Beneficial Cargo Owner (also serves as consignee name).
+          example: "Dolle Wohnregale GmbH & Co. KG"
         vatNumber:
           type: string
-          description: A unique number that identifies a taxable person or non-taxable legal entity registered for VAT
-          example: DE123456789
+          description: A unique number that identifies a taxable person or non-taxable legal entity registered for VAT.
+          example: DE182455120
         eoriNumber:
           type: string
-          description: Economic Operators Registration and Identification
-          example: DE123456789012345
+          description: Economic Operators Registration and Identification.
+          example: DE2964279
         street:
           type: string
-          description: Consignee street
-          example: Main street
+          description: Consignee street.
+          example: "Werner-von-Siemens-Straße"
         houseNumber:
           type: string
-          description: Consignee house number
-          example: 23a
+          description: Consignee house number.
+          example: "13"
         postalCode:
           type: string
-          description: Consignee postal code
-          example: 86000
-        city:
+          description: Consignee postal code.
+          example: "68649"
+        location1:
           type: string
-          description: Consignee city
-          example: Berlin
+          description: Consignee city.
+          example: "Gross-Rohrheim"
         country:
           type: string
-          description: Country code in ISO 3166 (Alpha-2)
-          example: DE
+          description: Country name or ISO 3166 Alpha-2 code.
+          example: "Germany"
 
     serviceException:
       type: object
